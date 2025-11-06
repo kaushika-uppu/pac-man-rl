@@ -200,10 +200,10 @@ class SimplePacmanAI:
             # Calculate score based on pellet distance and ghost distance
             score = -pellet_dist  # Negative: closer pellet is better
 
-            # If ghost exists, factor in ghost distance (weight it more heavily)
+            # If ghost exists, factor in ghost distance
             if self.ghost_pos is not None:
                 ghost_dist = self._distance(move, self.ghost_pos)
-                score += (ghost_dist * 2)  # Positive: farther ghost is better
+                score += ghost_dist  # Positive: farther ghost is better
 
             if score > best_score:
                 best_score = score

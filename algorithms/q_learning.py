@@ -78,7 +78,7 @@ class QLearningAgent:
         # Mark episodes where Pac-Man was caught
         caught_eps = [i + 1 for i, c in enumerate(catch_list) if c == 1]
         caught_steps = [steps_list[i] for i, c in enumerate(catch_list) if c == 1]
-        plt.scatter(caught_eps, caught_steps, color='red', marker='o', s=40, label='Pac-Man Caught')
+        # plt.scatter(caught_eps, caught_steps, color='red', marker='o', s=40, label='Pac-Man Caught')
         plt.xlabel('Episode')
         plt.ylabel('Steps per Episode', color='blue')
         plt.title('Q-learning Training: Steps per Episode')
