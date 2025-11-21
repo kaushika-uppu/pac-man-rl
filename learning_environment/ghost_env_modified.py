@@ -1,5 +1,5 @@
 class GhostEnv: 
-    def __init__(self, maze_layout, ghost_position_start, pacman_position_start, max_steps=2000):
+    def __init__(self, maze_layout, ghost_position_start, pacman_position_start, max_steps=10000):
         """
         Inputs:
         maze_layout: 2D numpy array where
@@ -60,13 +60,14 @@ class GhostEnv:
 
             # Check collision with Pac-Man
             if pacman_pos == self.ghost_pos:
-                reward += 100  # Ghost caught Pac-Man!
+                reward += 200  # Ghost caught Pac-Man!
                 done = True
                 break
             elif pellet_eaten:
                 reward += -5  # Pac-Man ate a pellet
             else:
-                reward += -0.2  # Pac-Man is alive and didn't eat a pellet
+                # Stronger penalty per step Pac-Man remains uncaught
+                reward += -2.0
 
 
             # Check if we've reached an intersection (decision point)
@@ -75,15 +76,15 @@ class GhostEnv:
                 break
 
             # Check if max steps reached
-            # if self.steps >= self.max_steps:
-            #     # print('Reached max steps')
-            #     done = True
-            #     break
+            if self.steps >= self.max_steps:
+                # print('Reached max steps')
+                done = True
+                break
 
         # Check if all pellets eaten (Pac-Man won)
         if not self.pacman.pellets:
             done = True
-            reward += -50  # Penalty for Pac-Man winning
+            reward += -100  # Penalty for Pac-Man winning
 
         return self.get_state_representation(self.ghost_pos, pacman_pos), reward, done, pacman_pos == self.ghost_pos
 
