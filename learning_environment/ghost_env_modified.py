@@ -66,7 +66,8 @@ class GhostEnv:
             elif pellet_eaten:
                 reward += -5  # Pac-Man ate a pellet
             else:
-                reward += -0.2  # Pac-Man is alive and didn't eat a pellet
+                # Stronger penalty per step Pac-Man remains uncaught
+                reward += -2.0
 
 
             # Check if we've reached an intersection (decision point)

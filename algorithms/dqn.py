@@ -99,15 +99,13 @@ class DQNAgent:
             return best_action_id
         
     def shape_reward(self, state, next_state, raw_reward):
-        _, _, _, _, rel_r, rel_c, _, _, _, _, _, _, _, _, _ = state
-        _, _, _, _, next_rel_r, next_rel_c, _, _, _, _, _, _, _, _, _ = next_state
+        """Currently a pass-through: use the environment's raw reward.
 
-        # add reward for moving closer/farther to/from pacman
-        prev_dist = abs(rel_r) + abs(rel_c)
-        next_dist = abs(next_rel_r) + abs(next_rel_c)
-        shaped  = raw_reward + (prev_dist - next_dist) * 3.0
-        return shaped
-    
+        Kept as a separate method so reward shaping can be reintroduced easily
+        if desired, but by default we train purely on env-defined returns.
+        """
+        return raw_reward
+
     def replay(self):
         if len(self.memory) < self.batch_size:
             return
@@ -169,6 +167,12 @@ class DQNAgent:
         moving_avg_rewards = []
         episode_steps = []
 
+        # Early stopping variables
+        best_avg_reward = float('-inf')
+        stall_counter = 0
+        stall_threshold = 10
+        best_policy_state = None
+
         for ep in range(episodes):
             total_reward = 0
             state = self.get_state(env.reset(), env.maze_layout.shape, env.maze_layout)
@@ -226,22 +230,47 @@ class DQNAgent:
 
             # self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 
-            if ep % 500 == 0:
+            if ep % 100 == 0 and ep > 0:
+                avg_reward_100 = np.mean(all_rewards[-100:])
+                avg_steps_100 = np.mean(episode_steps[-100:])
                 print(f"Episode {ep}/{episodes} | Epsilon={self.epsilon:.3f} | "
-              f"Steps={env.steps} | Caught={caught} | Replay size={len(self.memory)}")
-                
-            if ep % 1000 == 0:
-                avg_r = np.mean([m[2] for m in list(self.memory)[-1000:]])
-                print(f"Recent 1000 avg reward: {avg_r:.2f}")
+                      f"Avg Reward (100ep)={avg_reward_100:.2f} | Avg Steps (100ep)={avg_steps_100:.1f} | "
+                      f"Caught={caught} | Replay size={len(self.memory)}")
+
+            # Early stopping check every 50 episodes
+            if ep % 50 == 0 and ep > 0:
+                avg_reward_50 = np.mean(all_rewards[-50:])
+                avg_steps_50 = np.mean(episode_steps[-50:])
+                if avg_reward_50 > best_avg_reward:
+                    best_avg_reward = avg_reward_50
+                    best_avg_steps = avg_steps_50
+                    stall_counter = 0
+                    best_policy_state = self.policy_net.state_dict().copy()
+                    print(f"  → New best avg reward (50ep): {best_avg_reward:.2f} | Avg steps (50ep): {best_avg_steps:.1f}")
+                else:
+                    stall_counter += 1
+                    print(f"  → Stalled. Avg reward (50ep): {avg_reward_50:.2f} | Avg steps (50ep): {avg_steps_50:.1f} | Stall count: {stall_counter}/{stall_threshold}")
+                    if stall_counter >= stall_threshold:
+                        print(f"\nEarly stopping triggered after {ep} episodes (stalled {stall_threshold} times)")
+                        break
 
             all_rewards.append(total_reward)
 
             avg_reward = np.mean(all_rewards[-100:])
             moving_avg_rewards.append(avg_reward)
 
-        np.savez(os.path.join("results", "ghost_dqn_results.npz"), 
+        np.savez(os.path.join("results", "ghost_dqn_results.npz"),
                  rewards = np.array(all_rewards),
                  moving_avg = np.array(moving_avg_rewards),
                  steps = np.array(episode_steps)
                  )
+
+        # Restore best policy before returning
+        if best_policy_state is not None:
+            self.policy_net.load_state_dict(best_policy_state)
+            if 'best_avg_steps' in locals():
+                print(f"\nBest policy restored (avg reward: {best_avg_reward:.2f}, avg steps (50ep): {best_avg_steps:.1f})")
+            else:
+                print(f"\nBest policy restored (avg reward: {best_avg_reward:.2f})")
+
         return catch_list, episode_steps
