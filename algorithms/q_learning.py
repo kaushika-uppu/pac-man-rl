@@ -1,4 +1,4 @@
-from learning_environment.ghost_env_modified import GhostEnv, SimplePacmanAI
+from learning_environment.ghost_env import GhostEnv, SimplePacmanAI
 import random
 from collections import defaultdict
 import time
@@ -94,6 +94,7 @@ class QLearningAgent:
         """
         steps_list = []
         catch_list = []
+        rewards_list = []
         for ep in range(episodes):
             print('Running episode ', ep+1)
             caught = False
@@ -111,7 +112,7 @@ class QLearningAgent:
 
                 # epsilon greedy selection
                 action = self.choose_greedy_action(state, valid_actions)
-                
+
                 # print('state: ', state, '; action: ', action)
                 # time.sleep(1)
 
@@ -119,7 +120,7 @@ class QLearningAgent:
                 next_state, reward, done, caught = env.step(action)
                 total_reward += reward
                 # print('Reward: ', total_reward)
-                
+
                 # check next valid actions
                 next_valid = env._get_valid_moves_from_position(next_state[0]) if not done else []
 
@@ -129,7 +130,7 @@ class QLearningAgent:
                 # Update current state
                 state = next_state
 
-                if done: 
+                if done:
                     break
             if caught:
                 print("caught")
@@ -137,10 +138,15 @@ class QLearningAgent:
             else:
                 catch_list.append(0)
 
-        
+            rewards_list.append(total_reward)
             steps_list.append(env.steps)
-            
-            
+
+            # Log running averages over the last 50 episodes
+            if len(steps_list) >= 50:
+                avg_steps_50 = np.mean(steps_list[-50:])
+                avg_reward_50 = np.mean(rewards_list[-50:])
+                print(f"  Avg over last 50 episodes -> steps: {avg_steps_50:.2f}, reward: {avg_reward_50:.2f}")
+
             # epsilon decay
             self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
         return catch_list, steps_list

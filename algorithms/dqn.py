@@ -1,4 +1,4 @@
-from learning_environment.ghost_env_modified import GhostEnv, SimplePacmanAI
+from learning_environment.ghost_env import GhostEnv, SimplePacmanAI
 import random
 from collections import deque
 import os
