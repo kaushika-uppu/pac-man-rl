@@ -1,5 +1,7 @@
+import random
+
 class GhostEnv: 
-    def __init__(self, maze_layout, ghost_position_start, pacman_position_start, max_steps=500):
+    def __init__(self, maze_layout, ghost_position_start, pacman_position_start, max_steps=10000):
         """
         Inputs:
         maze_layout: 2D numpy array where
@@ -28,18 +30,18 @@ class GhostEnv:
         # initialize the starting state
         self.current_state = self.reset()
         
-    
+    # break removed for when a pellet is eaten, added for pac-man winning
     def step(self, ghost_action):
         """
         Execute one step of the environment.
         ghost_action: tuple (dr, dc) representing direction change
         Returns: (state, reward, done)
         """
-        self.steps += 1
         reward = 0
         done = False
-
+        self.steps += 1
         while True:
+
             # update pac-man's knowledge of ghost position
             self.pacman.set_ghost_position(self.ghost_pos)
 
@@ -54,36 +56,40 @@ class GhostEnv:
             if self._is_valid_position(new_ghost_pos):
                 self.ghost_pos = new_ghost_pos
             else: 
-                reward += -50 # Penalty for hitting a dead end
+                reward += -20 # Penalty for hitting a dead end
                 done = False
                 break
 
             # Check collision with Pac-Man
             if pacman_pos == self.ghost_pos:
-                reward += 100  # Ghost caught Pac-Man!
+                reward += 200  # Ghost caught Pac-Man!
                 done = True
                 break
             elif pellet_eaten:
-                reward += -10  # Pac-Man ate a pellet
-                break
+                reward += -5  # Pac-Man ate a pellet
             else:
-                reward += -1  # Pac-Man is alive and didn't eat a pellet
+                # Stronger penalty per step Pac-Man remains uncaught
+                reward += -2.0
+
 
             # Check if we've reached an intersection (decision point)
             if self.ghost_pos in self.intersection:
+                # print('Reached intersection')
                 break
 
             # Check if max steps reached
             if self.steps >= self.max_steps:
+                # print('Reached max steps')
                 done = True
                 break
 
         # Check if all pellets eaten (Pac-Man won)
         if not self.pacman.pellets:
             done = True
-            reward += -50  # Penalty for Pac-Man winning
+            reward += -100  # Penalty for Pac-Man winning
 
-        return self.get_state_representation(self.ghost_pos, pacman_pos), reward, done
+        return self.get_state_representation(self.ghost_pos, pacman_pos), reward, done, pacman_pos == self.ghost_pos
+
 
     def _is_valid_position(self, pos):
         """Check if position is valid (not a wall, within bounds)"""
@@ -91,6 +97,24 @@ class GhostEnv:
         if 0 <= row < self.maze_layout.shape[0] and 0 <= col < self.maze_layout.shape[1]:
             return self.maze_layout[row][col] != 0  # 0 = wall
         return False
+    
+    # added for ghost agent, yun
+    def _get_valid_moves_from_position(self, position):
+        """Get all valid adjacent moves from position (up, down, left, right)"""
+        row, col = position
+        valid_moves= []
+
+        # Check all 4 directions
+        for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            new_position = (row + dr, col + dc)
+            if self._is_valid_position(new_position):
+                valid_moves.append((dr, dc))
+
+        # If no valid moves, stay in place
+        if not valid_moves:
+            valid_moves.append((0,0))
+
+        return valid_moves
     
     def reset(self):
         """Reset environment for a new episode"""
@@ -112,7 +136,7 @@ class GhostEnv:
                 cell = self.maze_layout[row][col]
 
                 # a wall cannot be an intersection
-                if cell == 1:
+                if cell == 0:
                     continue
 
                 # check if there are at least 3 paths connected to this cell
@@ -131,11 +155,13 @@ class GhostEnv:
     
 class SimplePacmanAI:
     """Simple AI Pac-Man for ghost training - NOT used in actual game"""
-    def __init__(self, maze_layout, start_pos, ghost_pos=None):
+
+    def __init__(self, maze_layout, start_pos, ghost_pos=None, random_move_prob=0.1):
         self.position = start_pos
         self.maze_layout = maze_layout
         self.ghost_pos = ghost_pos
         self.pellets = self._extract_pellets_from_maze()
+        self.random_move_prob = random_move_prob
 
     def _extract_pellets_from_maze(self):
         """Extract all pellet positions from maze layout (value = 2)"""
@@ -157,13 +183,13 @@ class SimplePacmanAI:
         Score = -pellet_distance + (ghost_distance * 2)
         """
         if not self.pellets:
-            return self.position  # No pellets, stay still
+            return self.position, False  # No pellets, stay still
 
         # Get all valid moves from current position
         possible_moves = self._get_valid_moves()
 
         if not possible_moves:
-            return self.position  # Stuck, can't move
+            return self.position, False  # Stuck, can't move
 
         # Find nearest pellet
         nearest_pellet = min(self.pellets,
@@ -179,17 +205,20 @@ class SimplePacmanAI:
             # Calculate score based on pellet distance and ghost distance
             score = -pellet_dist  # Negative: closer pellet is better
 
-            # If ghost exists, factor in ghost distance (weight it more heavily)
+            # If ghost exists, factor in ghost distance
             if self.ghost_pos is not None:
                 ghost_dist = self._distance(move, self.ghost_pos)
-                score += (ghost_dist * 2)  # Positive: farther ghost is better
+                score += ghost_dist  # Positive: farther ghost is better
 
             if score > best_score:
                 best_score = score
                 best_move = move
 
         # Move to best position
-        self.position = best_move
+        if random.random() < self.random_move_prob:
+            self.position = random.choice(possible_moves)
+        else:
+            self.position = best_move
 
         # Remove pellet if eaten
         pellet_eaten = False

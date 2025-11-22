@@ -1,5 +1,5 @@
 from algorithms.q_learning import QLearningAgent
-from learning_environment.ghost_env_modified import GhostEnv
+from learning_environment.ghost_env import GhostEnv
 import numpy as np
 import random
 
