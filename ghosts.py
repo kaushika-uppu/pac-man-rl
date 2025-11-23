@@ -5,6 +5,14 @@ from constants import *
 from entity import Entity
 from modes import ModeController
 from sprites import GhostSprites
+import json
+
+Action_to_direc = {
+    (-1, 0): UP,
+    (1, 0): DOWN,
+    (0, -1): LEFT,
+    (0, 1): RIGHT
+}
 
 class Ghost(Entity):
     def __init__(self, node, pacman = None, blinky = None):
@@ -17,6 +25,10 @@ class Ghost(Entity):
         self.mode = ModeController(self)
         self.blinky = blinky
         self.homeNode = node
+
+        # added for QL 
+        self._ql_policy = None
+        self._ql_policy_path = "QL_policy.json"
 
     def update(self, dt):
         self.sprites.update(dt)
@@ -61,6 +73,21 @@ class Ghost(Entity):
             self.setSpeed(150)
             self.directionMethod = self.goalDirection
             self.spawn()
+    
+    # added for QL
+    def load_QL_policy(self, filename):
+        with open(filename, "r") as f:
+            raw = json.load(f)
+        return {eval(k): tuple(v) for k, v in raw.items()}
+
+    def _ensure_policy_loaded(self):
+        if self._ql_policy is None:
+            try:
+                self._ql_policy = self.load_QL_policy(self._ql_policy_path)
+                print(f"Loaded QL policy with {len(self._ql_policy)} entries")
+            except Exception as e:
+                print("Failed to load QL policy", e)
+                self._ql_policy = {} 
 
 # classes for the four different ghosts
 
@@ -70,6 +97,50 @@ class Blinky(Ghost):
         self.name = BLINKY
         self.color = RED
         self.sprites = GhostSprites(self)
+
+    # added for QL
+    def chase(self):
+        # Load policy once
+        self._ensure_policy_loaded()
+
+        ghost_row = int(self.position.y // TILE_HEIGHT)
+        ghost_col = int(self.position.x // TILE_WIDTH)
+        pac_row = int(self.pacman.position.y // TILE_HEIGHT)
+        pac_col = int(self.pacman.position.x // TILE_WIDTH)
+
+        state = ((ghost_row, ghost_col), (pac_row, pac_col))
+        action = self._ql_policy.get(state)
+
+        if action is not None:
+            print("choosing from policy")
+            direction = Action_to_direc.get(action)
+
+            # print("current position ", self.position)
+            # print(action, " chosen in policy")
+            # print(direction, " in ui")
+            # print(f"Policy action (dr,dc)={action} → UI dir={direction} ({'UP' if direction==UP else 'DOWN' if direction==DOWN else 'LEFT' if direction==LEFT else 'RIGHT' if direction==RIGHT else direction})")
+            
+            # Finds the neighbor node that is in the direction and set that as the goal for ghost
+            if direction is not None and direction in self.node.neighbors:
+                next_node = self.getNewTarget(direction)
+                if next_node is not None:
+                    self.goal = next_node.position
+                    # print("Goal: ", self.goal)
+                    return 
+
+        # if no QL state found
+        valid_dir = self.validDirections()
+        print("choosing random")
+        if valid_dir:
+            random = self.randomDirection(valid_dir)
+            next_node = self.node.neighbors.get(random)
+            if next_node is not None:
+                self.goal = next_node.position
+            return
+        
+        print("choosing pacman")
+        self.goal = self.pacman.position
+
 
 class Pinky(Ghost):
     def __init__(self, node, pacman = None, blinky = None):

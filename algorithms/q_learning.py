@@ -26,6 +26,9 @@ class QLearningAgent:
     def get_q_value(self, state, action):
         """Get the q value of state and action"""
         return self.Q[self.format_state_action(state, action)]
+    
+    def get_q_table(self):
+        return self.Q
 
     def find_best_action(self, state, valid_actions):
         """
@@ -87,7 +90,22 @@ class QLearningAgent:
 
         plt.show()
 
-    def train_q_learning(self, env, episodes):
+    def print_maze(self, maze, ghost_pos, pac_pos):
+        rows, cols = maze.shape
+        for r in range(rows):
+            for c in range(cols):
+                if (r, c) == ghost_pos:
+                    print("\033[91mG\033[0m", end=" ")  # red
+                elif (r, c) == pac_pos:
+                    print("\033[93mP\033[0m", end=" ")  # yellow
+                elif maze[r, c] == 0:
+                    print("#", end=" ")
+                else:
+                    print(".", end=" ")
+            print()
+        print()
+
+    def train_q_learning(self, env, episodes, debug=False):
         """
         Train ghost agent using Q-learning 
         Input: GhostEnv, QLearningAgent, number of episodes 
@@ -113,13 +131,13 @@ class QLearningAgent:
                 # epsilon greedy selection
                 action = self.choose_greedy_action(state, valid_actions)
 
-                # print('state: ', state, '; action: ', action)
-                # time.sleep(1)
-
                 # execute one step of environment
                 next_state, reward, done, caught = env.step(action)
                 total_reward += reward
                 # print('Reward: ', total_reward)
+
+                if debug and ep % 1000 == 0:
+                    self.print_maze(env.maze_layout, env.ghost_pos, next_state[1])
 
                 # check next valid actions
                 next_valid = env._get_valid_moves_from_position(next_state[0]) if not done else []
@@ -150,6 +168,21 @@ class QLearningAgent:
             # epsilon decay
             self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
         return catch_list, steps_list
+    
+    def get_best_policy(self, env):
+        """
+        Computes the best policy from the Q-table
+        Output: dict (ghost tuple, pacman tuple) -> best action tuple  
+        """ 
+        policy = {}
+        for key, q_val in self.Q.items():
+            ghost_r, ghost_c, pac_r, pac_c, dr, dc = key
+            state = ((ghost_r, ghost_c), (pac_r, pac_c))
+            action = (dr, dc)
+            if state not in policy or q_val > self.get_q_value(state, policy[state]):
+                policy[state] = action
+        return policy
+
 
 
 

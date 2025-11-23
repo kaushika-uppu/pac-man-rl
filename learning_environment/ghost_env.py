@@ -1,7 +1,7 @@
 import random
 
 class GhostEnv: 
-    def __init__(self, maze_layout, ghost_position_start, pacman_position_start, max_steps=10000):
+    def __init__(self, maze_layout, ghost_position_start, pacman_position_start, portals, max_steps=10000):
         """
         Inputs:
         maze_layout: 2D numpy array where
@@ -10,11 +10,13 @@ class GhostEnv:
             2 represents a pellet,
         ghost_position_start: tuple (row, col) representing the starting position of the ghost.
         pacman_position_start: tuple (row, col) representing the starting position of the pacman.
+        portals: mapping of portal positions, None if portal doesn't exist(eg. if a portal pair is (14,0) and (14.27), we'll have {(14,0):(14,27), (14,27):(14,0)} ) 
         max_steps: maximum steps per episode before termination
         """
         self.maze_layout = maze_layout
         self.ghost_position_start = ghost_position_start
         self.pacman_position_start = pacman_position_start
+        self.portals = portals
         self.max_steps = max_steps
         self.steps = 0
 
@@ -55,6 +57,10 @@ class GhostEnv:
             # Only move if valid (not a wall)
             if self._is_valid_position(new_ghost_pos):
                 self.ghost_pos = new_ghost_pos
+                # check if new position is portal
+                if new_ghost_pos in self.portals:
+                    # print("portal reached ", "jumped from ", new_ghost_pos, " to ", self.portals[new_ghost_pos])
+                    self.ghost_pos = self.portals[new_ghost_pos]
             else: 
                 reward += -20 # Penalty for hitting a dead end
                 done = False
@@ -79,7 +85,7 @@ class GhostEnv:
 
             # Check if max steps reached
             if self.steps >= self.max_steps:
-                # print('Reached max steps')
+                print('Reached max steps')
                 done = True
                 break
 
